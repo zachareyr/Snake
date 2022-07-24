@@ -1,0 +1,55 @@
+#board-container {
+    width: 30rem;
+    height: 30rem;
+    margin: auto;
+    margin-top: 0;
+}
+
+#title {
+    text-align: center;
+    font-size: 3rem;
+    margin-bottom: 0.75rem;
+}
+
+#score-container {
+    margin: auto;
+    width: 30rem;
+    height: 3rem;
+    margin-bottom: 0;
+    font-size: 1.5rem;    
+}
+
+#score-container > * {
+    line-height: 4rem;
+    display: inline;
+}
+
+
+#score {
+    float: left;
+}
+
+#highscore {
+    float: right;
+}
+
+body {
+    font-family: Helvetica, Arial, sans-serif;
+}
+
+.row {
+    position: relative;
+    height: 5%;
+    width: 100%;
+    display: flex;
+    
+}
+
+.space {
+    position: relative;
+    height: 100%;
+    width: 5%;
+    background: none;
+    box-sizing: border-box;
+    border: 1px solid black;
+}

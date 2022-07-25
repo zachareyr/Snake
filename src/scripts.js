@@ -12,6 +12,7 @@ const states = {
     "FOOD" : 2,
     "PATH" : 3,
 }
+
 const applyDirection = (pos, direction) => {
     return new Position(pos.y + direction[0], pos.x + direction[1], pos.value);
 }
@@ -112,7 +113,6 @@ class Board {
 
         this.updateBoard();
         this.updateHTML();
-        this.hasPath = false;
         this.ai = new AStar(this);
 
         // for some reason, this only works if i do it like this
@@ -130,7 +130,7 @@ class Board {
                 me.ai.advancePath();
             }, 1000/this.ups);
             // document.addEventListener("click", () => {
-            //     console.log('test');
+            //     // console.log('test');
             //     me.getNextAction();
             //     me.update();
             //     me.ai.advancePath();
@@ -140,10 +140,12 @@ class Board {
 
     getNextAction() {
         if(IS_USER_CONTROLLED) return;
-        if (!this.hasPath) {
-            console.log("getting path");
-            this.hasPath = this.ai.calculatePath();
-        }
+        // if (this.ai.path.length === 0) {
+        //     // console.log("Recalculating path...");
+        //     this.ai.calculatePath();
+        // }
+        // console.log("PATH: " + JSON.stringify(this.ai.path));
+        this.updateBoard();
         this.direction = this.ai.getNextDirection();
     }
 
@@ -158,6 +160,7 @@ class Board {
     }
 
     updateBoard() {
+        // console.log("Updating board");
         this.resetBoard();
         this.board[this.applePos.y][this.applePos.x].value = states["FOOD"];
         for(let position of this.snake) {
@@ -213,10 +216,6 @@ class Board {
         this.updateBoard();
         this.updateHTML();
 
-        if (!IS_USER_CONTROLLED && tmp) {
-            this.ai.recalculate();
-            this.hasPath = false;
-        }
     }
 
     reset() {        
@@ -237,7 +236,6 @@ class Board {
         this.updateBoard();
         this.updateHTML();
         this.ai = new AStar(this);
-        this.hasPath = false;
 
     }
 
@@ -306,14 +304,13 @@ class AStarNode {
         this.pos = pos.copy();
         this.target = target;
         this.parent = parent;
-        // this.calculateCosts();
+        this.cost = (this.parent !== undefined ? this.parent.cost + 1 : 0);
     }
     calculateCosts(origin) {
         if (origin === void 0) { origin = undefined; }
         // Trace path back if the origin is not supplied
         if (origin === undefined)
             origin = this.getOrigin();
-        this.cost = (this.parent !== undefined ? this.parent.cost + 1 : 0);
         this.estimatedEndCost = this.getEuclideanDistance();
         this.estimatedTotalCost = this.cost + this.estimatedEndCost;
     }
@@ -341,10 +338,10 @@ class AStarNode {
             let offset = _a[_i];
             children.push(new AStarNode(applyDirection(this.pos, offset), this.target, this));
         }
-        // console.log(children);
         return children;
     };
 };
+
 class AStar {
     constructor(board) {
         this.board = board;
@@ -360,62 +357,78 @@ class AStar {
         }
     }
 
-    getPath(start = undefined, targetCallback = undefined) {
+
+    dfs(node, requiredCost, board) {
+        if(node.cost >= requiredCost) {
+            console.log("DFS complete.");
+            // console.log(JSON.stringify(node))
+            return node;
+        }
+
+        let results = []
+        for (let newNode of node.getAdjacent()) {
+            if(!this.board.isValidPosition(newNode.pos)) continue;
+            if (board[newNode.pos.y][newNode.pos.x] !== states["SNAKE"]) {
+                let result = this.dfs(newNode, requiredCost, board);
+                if (result.cost >= requiredCost) return result;
+                results.push(result);
+            }
+        }
+        let max = results[0];
+        for(let result of results) {
+            if(result.cost > max.cost) max = result 
+        }
+        return max;
+    }
+
+    boardTo2DArray(b) {
+        let arr = create2DArray(this.board.height, this.board.width);
+        for(let i = 0; i < this.board.height; i++) {
+            for (let j = 0; j < this.board.width; j++) {
+                arr[i][j] = [this.board.board.value, 0];
+            }
+        }
+        return arr;
+    }
+
+    getBoardAt(node) {
+        let board = create2DArray(this.board.height, this.board.width, states["EMPTY"]);
+        let snakeLength = this.board.snake.length;
+        for (let i = 0; i < snakeLength; i++) {
+            if(node !== undefined) {
+                board[node.pos.y][node.pos.x] = states["SNAKE"];
+                node = node.parent;
+            } else {
+                let snakePos = this.board.snake[this.board.snake.length-(i+1)];
+                board[snakePos.y][snakePos.x] = states["SNAKE"];
+            }
+        }
+        return board;
+    }
+
+    getPath() {
         let open = [];
-        if (start === undefined) start = this.board.snake[0].copy();
-        open.push(new AStarNode(start, this.target))
+        open.push(new AStarNode(this.board.snake[0].copy(), this.target))
         let closed = [];
         let currentNode;
-        let snake, board;
-        if(targetCallback === undefined || start === undefined) {
-            snake = this.board.snake;
-            board = this.board.board;
-        } else {
-            snake = []
-            board = []
-            let node = start;
-            while (snake.length <= this.board.snake.length) {
-                console.log("BOARDSNAKE: " + JSON.stringify(this.board.snake))
-                console.log("ASNAKE: " + JSON.stringify(snake));
-                if(node !== undefined) {
-                    console.log("A");
-                    snake.push(node.pos);
-                    node = node.parent;
-                } else {
-                    console.log(JSON.stringify(this.board.snake));
-                    console.log("B");
-                    snake.push(this.board.snake[this.board.snake.length - snake.length].copy())
-                }
-            }
-            board = create2DArray(this.board.height, this.board.width, states["EMPTY"]);
-            for(let pos of snake) {
-                console.log(JSON.stringify(pos));
-                board[pos.y][pos.x] = states["SNAKE"];
-            }
-            
-        }
-        // console.log(open);
+
         while (open.length > 0) {
-            // console.log(JSON.stringify(open));
             let minIndex = this.getMin(open);
             currentNode = open[minIndex];
             open.splice(minIndex, 1);
 
             closed.push(currentNode);
 
-            if (targetCallback === undefined) {
-                if (currentNode.pos.x === this.target.x && currentNode.pos.y === this.target.y) {
-                    if(this.getPath(currentNode.pos, (node) => {
-                        if (node.cost === undefined) node.calculateCosts();
-                        return node.cost > this.board.snake.length;
-                    })) {
-                        console.log("path found");
-                        return currentNode;
-                    }
+            if (currentNode.pos.x === this.target.x && currentNode.pos.y === this.target.y) {
+                if(this.dfs(currentNode, this.board.snake.length, this.getBoardAt(currentNode)).cost >= this.board.snake.length) {
+                    console.log("path found");
+                    return currentNode;
+                } else {
+                    console.log("path rejected");
                 }
-            } else if (targetCallback(currentNode)) {
-                return true;
             }
+            
+
             let children = currentNode.getAdjacent();
             outer: for (let child of children) {
                 if (!this.board.isValidPosition(child.pos)) {
@@ -429,11 +442,10 @@ class AStar {
                 }
 
                 child.calculateCosts();
-                // console.log(JSON)
-                if (board[child.pos.y][child.pos.x].value === states["SNAKE"]) {
-                    for (let i = 0; i < snake.length; i++) {
-                        if (snake[i].equals(child.pos, false)) {
-                            if (child.cost <= (snake.length - i))
+                if (this.board.board[child.pos.y][child.pos.x].value === states["SNAKE"]) {
+                    for (let i = 0; i < this.board.snake.length; i++) {
+                        if (this.board.snake[i].equals(child.pos, false)) {
+                            if (child.cost <= (this.board.snake.length - i))
                                 continue outer;
                         }
                     }
@@ -447,22 +459,31 @@ class AStar {
                 open.push(child);
             }
         }
-        console.error("No valid path.");
-        return false;
+        console.log("No path found. Stalling.");    
+        // return this.dfs(currentNode, this.board.snake.length, this.boardTo2DArray(this.board.board));
+        return new AStarNode(applyDirection(this.board.snake[0].pos.copy(), directions["UP"]),this.target);
+
     };
+
+    makeHead(node) {
+        node.parent = undefined;
+        console.log(JSON.stringify(node));
+        return node;
+    }
 
     calculatePath() {
         let node = this.getPath();
         this.path = [];
-        if (node === undefined)
+        if (node === undefined) {
+            console.log("Path is not valid.");
             return false;
+        }
         while (node.parent !== undefined) {
             let pathNode = node.pos;
             pathNode.value = states["EMPTY"];
             this.path.splice(0, 0, pathNode);
             node = node.parent;
         }
-        // this.path.splice(0, 1);
         return true;
     };
     getMin(positions) {
@@ -474,7 +495,13 @@ class AStar {
         }
         return min;
     };
+
     getNextDirection() {
+        if (this.path.length <= 0) {
+            this.recalculate();
+            this.calculatePath();
+        }
+        
         let currentPos = this.board.snake[0];
         let nextPos = this.path[0]; 
         if (nextPos.y === currentPos.y) {
@@ -482,36 +509,32 @@ class AStar {
                 return directions["RIGHT"];
             else if (nextPos.x === currentPos.x - 1)
                 return directions["LEFT"];
-            else {
-                console.log("wtf");
-            }
+
         }
         else if (nextPos.x === currentPos.x) {
             if (nextPos.y=== currentPos.y + 1)
                 return directions["DOWN"];
             else if (nextPos.y === currentPos.y - 1)
                 return directions["UP"];
-            else {
-                // this.getPath();
-                // this.getNextDirection();
-                console.log("wtf")
-            }
         }
         else {
             throw new Error("Invalid path.");
         }
     };
+
     advancePath() {
-        this.path.splice(0, 1);
+        if (this.path.length > 0) {
+            this.path.splice(0, 1);
+        } else {
+            console.log("Failed to advance path: no path")
+        }
     };
 
     recalculate() {
         outer: for(let row of this.board.board) {
             for(let col of row) {
                 if (col.value === states["FOOD"]) {
-                    console.log("target found")
                     this.target = col.copy();
-                    console.log("new apple pos:" + JSON.stringify(this.target));
                     break outer;
                 }
             }
@@ -522,6 +545,6 @@ class AStar {
 
 
 let allContainer = document.getElementById("all-container");
-board = new Board(20, 20, 10, document.getElementById("board-container"));
+board = new Board(20, 20, 100, document.getElementById("board-container"));
 document.addEventListener("keydown", handleKeyPress);
 

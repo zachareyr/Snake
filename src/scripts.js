@@ -1,3 +1,5 @@
+"use strict";
+
 const directions = {
     "UP": [-1, 0],
     "RIGHT": [0, 1],
@@ -361,24 +363,17 @@ class AStar {
     dfs(node, requiredCost, board) {
         if(node.cost >= requiredCost) {
             console.log("DFS complete.");
-            // console.log(JSON.stringify(node))
-            return node;
+            this.dfsResult = node;
+            return;
         }
 
-        let results = []
         for (let newNode of node.getAdjacent()) {
             if(!this.board.isValidPosition(newNode.pos)) continue;
-            if (board[newNode.pos.y][newNode.pos.x] !== states["SNAKE"]) {
-                let result = this.dfs(newNode, requiredCost, board);
-                if (result.cost >= requiredCost) return result;
-                results.push(result);
-            }
+            if (board[newNode.pos.y][newNode.pos.x] === states["SNAKE"]) continue;
+            if (visited[newNode.pos.y][newNode.pos.x]) continue;
+            visited[newNode.pos.y][newNode.pos.x] = true;
+            this.dfs(newNode, requiredCost, board);
         }
-        let max = results[0];
-        for(let result of results) {
-            if(result.cost > max.cost) max = result 
-        }
-        return max;
     }
 
     boardTo2DArray(b) {

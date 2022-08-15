@@ -1,5 +1,7 @@
 "use strict";
 
+const UPDATES_PER_SECOND = 10;
+
 const directions = {
     "UP": [-1, 0],
     "RIGHT": [0, 1],
@@ -24,9 +26,7 @@ const randint = (min, max) => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-const IS_USER_CONTROLLED = false;
 const handleKeyPress = (k) => {
-    if(!IS_USER_CONTROLLED) return;
     if (k.key === "ArrowUp") {
         board.tryChange(directions["UP"])
         k.preventDefault();
@@ -115,40 +115,14 @@ class Board {
 
         this.updateBoard();
         this.updateHTML();
-        this.ai = new AStar(this);
 
         // for some reason, this only works if i do it like this
         // i have no idea why...
         let me = this;
         // this.update();
-        if(IS_USER_CONTROLLED) {
-            this.interval = setInterval(function() {
-                me.update();
-            }, 1000/this.ups)
-        } else {
-            this.interval = setInterval(() => {
-                me.getNextAction();
-                me.update();
-                me.ai.advancePath();
-            }, 1000/this.ups);
-            // document.addEventListener("click", () => {
-            //     // console.log('test');
-            //     me.getNextAction();
-            //     me.update();
-            //     me.ai.advancePath();
-            // })
-        }
-    }
-
-    getNextAction() {
-        if(IS_USER_CONTROLLED) return;
-        // if (this.ai.path.length === 0) {
-        //     // console.log("Recalculating path...");
-        //     this.ai.calculatePath();
-        // }
-        // console.log("PATH: " + JSON.stringify(this.ai.path));
-        this.updateBoard();
-        this.direction = this.ai.getNextDirection();
+        this.interval = setInterval(function() {
+            me.update();
+        }, 1000/this.ups)
     }
 
     updateHTML() {  
@@ -237,7 +211,6 @@ class Board {
         }
         this.updateBoard();
         this.updateHTML();
-        this.ai = new AStar(this);
 
     }
 
@@ -299,247 +272,7 @@ class Position {
 }
 
 
-
-class AStarNode {
-    constructor(pos, target, parent) {
-        if (parent === void 0) { parent = undefined; }
-        this.pos = pos.copy();
-        this.target = target;
-        this.parent = parent;
-        this.cost = (this.parent !== undefined ? this.parent.cost + 1 : 0);
-    }
-    calculateCosts(origin) {
-        if (origin === void 0) { origin = undefined; }
-        // Trace path back if the origin is not supplied
-        if (origin === undefined)
-            origin = this.getOrigin();
-        this.estimatedEndCost = this.getEuclideanDistance();
-        this.estimatedTotalCost = this.cost + this.estimatedEndCost;
-    }
-
-    getEuclideanDistance(target = undefined) {
-        if (target === undefined)
-            target = this.target;
-        return Math.sqrt((target.y - this.pos.y) * (target.y - this.pos.y) + (target.x - this.pos.x) * (target.x - this.pos.x));
-    };
-
-    equals(other) {
-        return (this.pos.equals(other.pos, false));
-    };
-    getOrigin() {
-        let origin = this;
-        while ((origin === null || origin === void 0 ? void 0 : origin.parent) !== undefined) {
-            origin = origin === null || origin === void 0 ? void 0 : origin.parent;
-        }
-        return origin;
-    };
-
-    getAdjacent() {
-        let children = [];
-        for (let _i = 0, _a = [[-1, 0], [1, 0], [0, 1], [0, -1]]; _i < _a.length; _i++) {
-            let offset = _a[_i];
-            children.push(new AStarNode(applyDirection(this.pos, offset), this.target, this));
-        }
-        return children;
-    };
-};
-
-class AStar {
-    constructor(board) {
-        this.board = board;
-        this.path = [];
-        outer: for(let row of this.board.board) {
-            for(let col of row) {
-                if (col.value === states["FOOD"]) {
-                    console.log("target found")
-                    this.target = col.copy();
-                    break outer;
-                }
-            }
-        }
-    }
-
-
-    dfs(node, requiredCost, board) {
-        if(node.cost >= requiredCost) {
-            console.log("DFS complete.");
-            this.dfsResult = node;
-            return;
-        }
-
-        for (let newNode of node.getAdjacent()) {
-            if(!this.board.isValidPosition(newNode.pos)) continue;
-            if (board[newNode.pos.y][newNode.pos.x] === states["SNAKE"]) continue;
-            if (visited[newNode.pos.y][newNode.pos.x]) continue;
-            visited[newNode.pos.y][newNode.pos.x] = true;
-            this.dfs(newNode, requiredCost, board);
-        }
-    }
-
-    boardTo2DArray(b) {
-        let arr = create2DArray(this.board.height, this.board.width);
-        for(let i = 0; i < this.board.height; i++) {
-            for (let j = 0; j < this.board.width; j++) {
-                arr[i][j] = [this.board.board.value, 0];
-            }
-        }
-        return arr;
-    }
-
-    getBoardAt(node) {
-        let board = create2DArray(this.board.height, this.board.width, states["EMPTY"]);
-        let snakeLength = this.board.snake.length;
-        for (let i = 0; i < snakeLength; i++) {
-            if(node !== undefined) {
-                board[node.pos.y][node.pos.x] = states["SNAKE"];
-                node = node.parent;
-            } else {
-                let snakePos = this.board.snake[this.board.snake.length-(i+1)];
-                board[snakePos.y][snakePos.x] = states["SNAKE"];
-            }
-        }
-        return board;
-    }
-
-    getPath() {
-        let open = [];
-        open.push(new AStarNode(this.board.snake[0].copy(), this.target))
-        let closed = [];
-        let currentNode;
-
-        while (open.length > 0) {
-            let minIndex = this.getMin(open);
-            currentNode = open[minIndex];
-            open.splice(minIndex, 1);
-
-            closed.push(currentNode);
-
-            if (currentNode.pos.x === this.target.x && currentNode.pos.y === this.target.y) {
-                if(this.dfs(currentNode, this.board.snake.length, this.getBoardAt(currentNode)).cost >= this.board.snake.length) {
-                    console.log("path found");
-                    return currentNode;
-                } else {
-                    console.log("path rejected");
-                }
-            }
-            
-
-            let children = currentNode.getAdjacent();
-            outer: for (let child of children) {
-                if (!this.board.isValidPosition(child.pos)) {
-                    continue;
-                }
-
-                for (let closedPos of closed) {
-                    if (child.equals(closedPos)) {
-                        continue outer;
-                    }
-                }
-
-                child.calculateCosts();
-                if (this.board.board[child.pos.y][child.pos.x].value === states["SNAKE"]) {
-                    for (let i = 0; i < this.board.snake.length; i++) {
-                        if (this.board.snake[i].equals(child.pos, false)) {
-                            if (child.cost <= (this.board.snake.length - i))
-                                continue outer;
-                        }
-                    }
-                }
-                
-                for (let openPos of open) {
-                    if (child.equals(openPos) && child.estimatedTotalCost >= openPos.estimatedTotalCost) {
-                        continue outer;
-                    }
-                }
-                open.push(child);
-            }
-        }
-        console.log("No path found. Stalling.");    
-        // return this.dfs(currentNode, this.board.snake.length, this.boardTo2DArray(this.board.board));
-        return new AStarNode(applyDirection(this.board.snake[0].pos.copy(), directions["UP"]),this.target);
-
-    };
-
-    makeHead(node) {
-        node.parent = undefined;
-        console.log(JSON.stringify(node));
-        return node;
-    }
-
-    calculatePath() {
-        let node = this.getPath();
-        this.path = [];
-        if (node === undefined) {
-            console.log("Path is not valid.");
-            return false;
-        }
-        while (node.parent !== undefined) {
-            let pathNode = node.pos;
-            pathNode.value = states["EMPTY"];
-            this.path.splice(0, 0, pathNode);
-            node = node.parent;
-        }
-        return true;
-    };
-    getMin(positions) {
-        let min = 0;
-        for (let i = 0; i < positions.length; i++) {
-            if (positions[i].estimatedTotalCost === undefined) positions[i].calculateCosts();
-            if (positions[i].estimatedTotalCost < positions[min].estimatedTotalCost)
-                min = i;
-        }
-        return min;
-    };
-
-    getNextDirection() {
-        if (this.path.length <= 0) {
-            this.recalculate();
-            this.calculatePath();
-        }
-        
-        let currentPos = this.board.snake[0];
-        let nextPos = this.path[0]; 
-        if (nextPos.y === currentPos.y) {
-            if (nextPos.x === currentPos.x + 1)
-                return directions["RIGHT"];
-            else if (nextPos.x === currentPos.x - 1)
-                return directions["LEFT"];
-
-        }
-        else if (nextPos.x === currentPos.x) {
-            if (nextPos.y=== currentPos.y + 1)
-                return directions["DOWN"];
-            else if (nextPos.y === currentPos.y - 1)
-                return directions["UP"];
-        }
-        else {
-            throw new Error("Invalid path.");
-        }
-    };
-
-    advancePath() {
-        if (this.path.length > 0) {
-            this.path.splice(0, 1);
-        } else {
-            console.log("Failed to advance path: no path")
-        }
-    };
-
-    recalculate() {
-        outer: for(let row of this.board.board) {
-            for(let col of row) {
-                if (col.value === states["FOOD"]) {
-                    this.target = col.copy();
-                    break outer;
-                }
-            }
-        }
-    }
-};
-
-
-
 let allContainer = document.getElementById("all-container");
-board = new Board(20, 20, 100, document.getElementById("board-container"));
+let board = new Board(20, 20, UPDATES_PER_SECOND, document.getElementById("board-container"));
 document.addEventListener("keydown", handleKeyPress);
 

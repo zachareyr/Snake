@@ -1,7 +1,7 @@
 "use strict";
 
 const UPDATES_PER_SECOND = 10;
-
+    
 const directions = {
     "UP": [-1, 0],
     "RIGHT": [0, 1],
